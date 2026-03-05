@@ -12,7 +12,6 @@ class TerminalBuffer(
     val scrollbackMax: Int
 ) {
     val screen: MutableList<MutableList<Cell>>
-
     val scrollback: MutableList<List<Cell>> = mutableListOf()
 
     var cursorCol: Int = 0
@@ -104,8 +103,29 @@ class TerminalBuffer(
     }
 
     fun insertEmptyLineAtBottom() {
-        TODO("API skeleton only")
+        scrollUpOne()
     }
+
+    private fun scrollUpOne() {
+        if (screen.isEmpty()) return
+
+        val removedTopLine = screen.removeAt(0)
+
+        if (scrollbackMax > 0) {
+            scrollback.add(copyLine(removedTopLine))
+            while (scrollback.size > scrollbackMax) {
+                scrollback.removeAt(0)
+            }
+        }
+
+        screen.add(createBlankLine())
+
+        cursorRow = cursorRow.coerceIn(0, height - 1)
+    }
+
+
+    private fun copyLine(line: List<Cell>): List<Cell> =
+        line.map { it.copy(style = it.style.copy()) }
 
     fun clearScreen() {
         TODO("API skeleton only")
