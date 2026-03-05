@@ -34,11 +34,13 @@ class TerminalBuffer(
         require(height > 0) { "height must be > 0 (was $height)" }
         require(scrollbackMax >= 0) { "scrollbackMax must be >= 0 (was $scrollbackMax)" }
 
-        screen = MutableList(height) { createBlankLine() }
+        screen = MutableList(height) { blankLine() }
         checkInvariants()
     }
 
-    private fun createBlankLine(): MutableList<Cell> = MutableList(width) { Cell() }
+    private fun defaultCell(): Cell = Cell()
+
+    private fun blankLine(): MutableList<Cell> = MutableList(width) { defaultCell() }
 
     private fun checkInvariants() {
         check(screen.size == height) { "screen size must equal height ($height, was ${screen.size})" }
@@ -118,7 +120,7 @@ class TerminalBuffer(
             }
         }
 
-        screen.add(createBlankLine())
+        screen.add(blankLine())
 
         cursorRow = cursorRow.coerceIn(0, height - 1)
     }
@@ -128,11 +130,20 @@ class TerminalBuffer(
         line.map { it.copy(style = it.style.copy()) }
 
     fun clearScreen() {
-        TODO("API skeleton only")
+        screen.clear()
+        repeat(height) {
+            screen.add(blankLine())
+        }
+
+        cursorCol = cursorCol.coerceIn(0, width - 1)
+        cursorRow = cursorRow.coerceIn(0, height - 1)
     }
 
     fun clearScreenAndScrollback() {
-        TODO("API skeleton only")
+        clearScreen()
+        scrollback.clear()
+        cursorCol = 0
+        cursorRow = 0
     }
 
     fun getScreenChar(col: Int, row: Int): Char {
