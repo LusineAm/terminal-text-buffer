@@ -9,8 +9,42 @@ data class Attributes(
 class TerminalBuffer(
     val width: Int,
     val height: Int,
-    val scrollbackMaxLines: Int
+    val scrollbackMax: Int
 ) {
+    val screen: MutableList<MutableList<Cell>>
+
+    val scrollback: MutableList<List<Cell>> = mutableListOf()
+
+    var cursorCol: Int = 0
+        private set
+    var cursorRow: Int = 0
+        private set
+
+    var currentFg: TermColor = TermColor.DEFAULT
+        private set
+    var currentBg: TermColor = TermColor.DEFAULT
+        private set
+    var currentBold: Boolean = false
+        private set
+
+    init {
+        require(width > 0) { "width must be > 0 (was $width)" }
+        require(height > 0) { "height must be > 0 (was $height)" }
+        require(scrollbackMax >= 0) { "scrollbackMax must be >= 0 (was $scrollbackMax)" }
+
+        screen = MutableList(height) { createBlankLine() }
+        checkInvariants()
+    }
+
+    private fun createBlankLine(): MutableList<Cell> = MutableList(width) { Cell() }
+
+    private fun checkInvariants() {
+        check(screen.size == height) { "screen size must equal height ($height, was ${screen.size})" }
+        check(screen.all { it.size == width }) { "each screen line must have width cells ($width)" }
+        check(cursorRow in 0 until height) { "cursorRow out of bounds (row=$cursorRow, height=$height)" }
+        check(cursorCol in 0 until width) { "cursorCol out of bounds (col=$cursorCol, width=$width)" }
+    }
+
     fun setAttributes(fg: TermColor, bg: TermColor, style: TextStyle) {
         TODO("API skeleton only")
     }

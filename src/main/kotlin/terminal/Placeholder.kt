@@ -1,3 +1,0 @@
-package terminal
-
-class Placeholder
