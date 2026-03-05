@@ -129,6 +129,34 @@ class TerminalBuffer(
     private fun copyLine(line: List<Cell>): List<Cell> =
         line.map { it.copy(style = it.style.copy()) }
 
+    private fun line(area: BufferArea, row: Int): List<Cell> {
+        return when (area) {
+            BufferArea.SCREEN -> {
+                if (row !in 0 until height) {
+                    throw IndexOutOfBoundsException("screen row out of bounds (row=$row, height=$height)")
+                }
+                screen[row]
+            }
+
+            BufferArea.SCROLLBACK -> {
+                if (row !in 0 until scrollback.size) {
+                    throw IndexOutOfBoundsException(
+                        "scrollback row out of bounds (row=$row, size=${scrollback.size})"
+                    )
+                }
+                scrollback[row]
+            }
+        }
+    }
+
+    private fun cell(area: BufferArea, row: Int, col: Int): Cell {
+        val line = line(area, row)
+        if (col !in 0 until width) {
+            throw IndexOutOfBoundsException("column out of bounds (col=$col, width=$width)")
+        }
+        return line[col]
+    }
+
     fun clearScreen() {
         screen.clear()
         repeat(height) {
@@ -146,35 +174,68 @@ class TerminalBuffer(
         cursorRow = 0
     }
 
+    fun getCell(area: BufferArea, row: Int, col: Int): Cell = cell(area, row, col)
+
+    fun getChar(area: BufferArea, row: Int, col: Int): Char = getCell(area, row, col).ch
+
+    fun getAttributes(area: BufferArea, row: Int, col: Int): Attributes {
+        val cell = getCell(area, row, col)
+        return Attributes(
+            fg = cell.fg,
+            bg = cell.bg,
+            style = cell.style.copy()
+        )
+    }
+
+    fun getLineString(area: BufferArea, row: Int): String {
+        val line = line(area, row)
+        val chars = CharArray(width) { col -> line[col].ch }
+        return String(chars).trimEnd(' ')
+    }
+
+    fun getScreenAsString(): String =
+        (0 until height).joinToString(separator = "\n") { row -> getLineString(BufferArea.SCREEN, row) }
+
+    fun getAllAsString(): String {
+        val lines = mutableListOf<String>()
+        for (row in 0 until scrollback.size) {
+            lines.add(getLineString(BufferArea.SCROLLBACK, row))
+        }
+        for (row in 0 until height) {
+            lines.add(getLineString(BufferArea.SCREEN, row))
+        }
+        return lines.joinToString(separator = "\n")
+    }
+
     fun getScreenChar(col: Int, row: Int): Char {
-        TODO("API skeleton only")
+        return getChar(BufferArea.SCREEN, row, col)
     }
 
     fun getScrollbackChar(col: Int, row: Int): Char {
-        TODO("API skeleton only")
+        return getChar(BufferArea.SCROLLBACK, row, col)
     }
 
     fun getScreenCell(col: Int, row: Int): Cell {
-        TODO("API skeleton only")
+        return getCell(BufferArea.SCREEN, row, col)
     }
 
     fun getScrollbackCell(col: Int, row: Int): Cell {
-        TODO("API skeleton only")
+        return getCell(BufferArea.SCROLLBACK, row, col)
     }
 
     fun getScreenLineAsString(row: Int): String {
-        TODO("API skeleton only")
+        return getLineString(BufferArea.SCREEN, row)
     }
 
     fun getScrollbackLineAsString(row: Int): String {
-        TODO("API skeleton only")
+        return getLineString(BufferArea.SCROLLBACK, row)
     }
 
     fun getEntireScreenAsString(): String {
-        TODO("API skeleton only")
+        return getScreenAsString()
     }
 
     fun getEntireContentAsString(): String {
-        TODO("API skeleton only")
+        return getAllAsString()
     }
 }
