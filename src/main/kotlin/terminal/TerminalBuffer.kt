@@ -101,7 +101,17 @@ class TerminalBuffer(
     }
 
     fun fillCurrentLine(ch: Char? = null) {
-        TODO("API skeleton only")
+        check(cursorRow in 0 until height) { "cursorRow out of bounds (row=$cursorRow, height=$height)" }
+
+        val fillChar = ch ?: ' '
+        for (col in 0 until width) {
+            screen[cursorRow][col] = Cell(
+                ch = fillChar,
+                fg = currentFg,
+                bg = currentBg,
+                style = currentStyle.copy()
+            )
+        }
     }
 
     fun insertEmptyLineAtBottom() {
