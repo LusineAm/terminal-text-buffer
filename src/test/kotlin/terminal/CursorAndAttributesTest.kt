@@ -3,7 +3,7 @@ package terminal
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-class TerminalBufferInitTest {
+class CursorAndAttributesTest {
 
     @Test
     fun setCursor_clamps_to_bounds() {

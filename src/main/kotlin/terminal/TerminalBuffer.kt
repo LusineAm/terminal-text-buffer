@@ -24,8 +24,11 @@ class TerminalBuffer(
         private set
     var currentBg: TermColor = TermColor.DEFAULT
         private set
-    var currentBold: Boolean = false
-        private set
+
+    private var currentStyle: TextStyle = TextStyle()
+
+    val currentBold: Boolean
+        get() = currentStyle.bold
 
     init {
         require(width > 0) { "width must be > 0 (was $width)" }
@@ -46,35 +49,46 @@ class TerminalBuffer(
     }
 
     fun setAttributes(fg: TermColor, bg: TermColor, style: TextStyle) {
-        TODO("API skeleton only")
+        currentFg = fg
+        currentBg = bg
+        currentStyle = style.copy()
     }
 
-    fun getAttributes(): Attributes {
-        TODO("API skeleton only")
+    fun getCurrentAttributes(): Attributes {
+        return Attributes(
+            fg = currentFg,
+            bg = currentBg,
+            style = currentStyle.copy()
+        )
     }
 
-    fun getCursor(): Pair<Int, Int> {
-        TODO("API skeleton only")
-    }
+    fun getAttributes(): Attributes = getCurrentAttributes()
+
+    fun getCursor(): Pair<Int, Int> = cursorCol to cursorRow
 
     fun setCursor(col: Int, row: Int) {
-        TODO("API skeleton only")
+        cursorCol = col.coerceIn(0, width - 1)
+        cursorRow = row.coerceIn(0, height - 1)
     }
 
     fun moveUp(n: Int) {
-        TODO("API skeleton only")
+        if (n <= 0) return
+        setCursor(cursorCol, cursorRow - n)
     }
 
     fun moveDown(n: Int) {
-        TODO("API skeleton only")
+        if (n <= 0) return
+        setCursor(cursorCol, cursorRow + n)
     }
 
     fun moveLeft(n: Int) {
-        TODO("API skeleton only")
+        if (n <= 0) return
+        setCursor(cursorCol - n, cursorRow)
     }
 
     fun moveRight(n: Int) {
-        TODO("API skeleton only")
+        if (n <= 0) return
+        setCursor(cursorCol + n, cursorRow)
     }
 
     fun writeText(text: String) {
