@@ -42,6 +42,8 @@ class TerminalBuffer(
 
     private fun blankLine(): MutableList<Cell> = MutableList(width) { defaultCell() }
 
+    private fun blankLineUsingCurrentAttributesOrDefault(): MutableList<Cell> = blankLine()
+
     private fun checkInvariants() {
         check(screen.size == height) { "screen size must equal height ($height, was ${screen.size})" }
         check(screen.all { it.size == width }) { "each screen line must have width cells ($width)" }
@@ -93,7 +95,18 @@ class TerminalBuffer(
     }
 
     fun writeText(text: String) {
-        TODO("API skeleton only")
+        if (text.isEmpty()) return
+
+        for (ch in text) {
+            when (ch) {
+                '\n' -> newLine()
+                '\r' -> carriageReturn()
+                else -> {
+                    putCharAtCursor(ch)
+                    advanceCursorAfterPrintable()
+                }
+            }
+        }
     }
 
     fun insertText(text: String) {
@@ -115,10 +128,10 @@ class TerminalBuffer(
     }
 
     fun insertEmptyLineAtBottom() {
-        scrollUpOne()
+        scrollUpOneLine()
     }
 
-    private fun scrollUpOne() {
+    private fun scrollUpOneLine() {
         if (screen.isEmpty()) return
 
         val removedTopLine = screen.removeAt(0)
@@ -130,11 +143,43 @@ class TerminalBuffer(
             }
         }
 
-        screen.add(blankLine())
+        screen.add(blankLineUsingCurrentAttributesOrDefault())
 
         cursorRow = cursorRow.coerceIn(0, height - 1)
+        cursorCol = cursorCol.coerceIn(0, width - 1)
     }
 
+    private fun putCharAtCursor(ch: Char) {
+        screen[cursorRow][cursorCol] = Cell(
+            ch = ch,
+            fg = currentFg,
+            bg = currentBg,
+            style = currentStyle.copy()
+        )
+    }
+
+    private fun advanceCursorAfterPrintable() {
+        cursorCol += 1
+        if (cursorCol == width) {
+            cursorCol = 0
+            cursorRow += 1
+            if (cursorRow == height) {
+                scrollUpOneLine()
+            }
+        }
+    }
+
+    private fun newLine() {
+        cursorCol = 0
+        cursorRow += 1
+        if (cursorRow == height) {
+            scrollUpOneLine()
+        }
+    }
+
+    private fun carriageReturn() {
+        cursorCol = 0
+    }
 
     private fun copyLine(line: List<Cell>): List<Cell> =
         line.map { it.copy(style = it.style.copy()) }
@@ -168,13 +213,16 @@ class TerminalBuffer(
     }
 
     fun clearScreen() {
+        val oldCursorCol = cursorCol
+        val oldCursorRow = cursorRow
+
         screen.clear()
         repeat(height) {
             screen.add(blankLine())
         }
 
-        cursorCol = cursorCol.coerceIn(0, width - 1)
-        cursorRow = cursorRow.coerceIn(0, height - 1)
+        cursorCol = oldCursorCol.coerceIn(0, width - 1)
+        cursorRow = oldCursorRow.coerceIn(0, height - 1)
     }
 
     fun clearScreenAndScrollback() {
@@ -200,7 +248,7 @@ class TerminalBuffer(
     fun getLineString(area: BufferArea, row: Int): String {
         val line = line(area, row)
         val chars = CharArray(width) { col -> line[col].ch }
-        return String(chars).trimEnd(' ')
+        return String(chars).trimEnd()
     }
 
     fun getScreenAsString(): String =

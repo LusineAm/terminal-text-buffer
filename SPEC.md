@@ -54,7 +54,8 @@
 - `fillCurrentLine` fills the entire cursor row using current attributes. If `ch` is `null`, it uses the default blank character `' '`.
 - `clearScreen` resets only the visible screen to default cells and preserves scrollback.
 - `clearAll` semantics are exposed by `clearScreenAndScrollback`: both the visible screen and scrollback are reset.
-- After `clearScreen` and `clearScreenAndScrollback`, the cursor becomes `(0, 0)`.
+- After `clearScreen` the cursor position is preserved (clamped to screen bounds).
+- After `clearScreenAndScrollback`, the cursor becomes `(0, 0)`.
 - `clearScreen` and `clearScreenAndScrollback` preserve current attributes.
 
 ## 7. Content access
