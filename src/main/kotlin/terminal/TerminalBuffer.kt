@@ -1,11 +1,5 @@
 package terminal
 
-data class Attributes(
-    val fg: TermColor = TermColor.DEFAULT,
-    val bg: TermColor = TermColor.DEFAULT,
-    val style: TextStyle = TextStyle()
-)
-
 class TerminalBuffer(
     val width: Int,
     val height: Int,
@@ -26,23 +20,14 @@ class TerminalBuffer(
 
     private var currentStyle: TextStyle = TextStyle()
 
-    val currentBold: Boolean
-        get() = currentStyle.bold
-
     init {
         require(width > 0) { "width must be > 0 (was $width)" }
         require(height > 0) { "height must be > 0 (was $height)" }
         require(scrollbackMax >= 0) { "scrollbackMax must be >= 0 (was $scrollbackMax)" }
 
-        screen = MutableList(height) { blankLine() }
+        screen = MutableList(height) { blankLine(width) }
         checkInvariants()
     }
-
-    private fun defaultCell(): Cell = Cell()
-
-    private fun blankLine(): MutableList<Cell> = MutableList(width) { defaultCell() }
-
-    private fun blankLineUsingCurrentAttributesOrDefault(): MutableList<Cell> = blankLine()
 
     private fun checkInvariants() {
         check(screen.size == height) { "screen size must equal height ($height, was ${screen.size})" }
@@ -57,21 +42,13 @@ class TerminalBuffer(
         currentStyle = style.copy()
     }
 
-    fun getCurrentAttributes(): Attributes {
-        return Attributes(
-            fg = currentFg,
-            bg = currentBg,
-            style = currentStyle.copy()
-        )
-    }
-
-    fun getAttributes(): Attributes = getCurrentAttributes()
+    fun getCurrentAttributes(): Attributes = currentAttributes(currentFg, currentBg, currentStyle)
 
     fun getCursor(): Pair<Int, Int> = cursorCol to cursorRow
 
     fun setCursor(col: Int, row: Int) {
-        cursorCol = col.coerceIn(0, width - 1)
-        cursorRow = row.coerceIn(0, height - 1)
+        cursorCol = clamp(col, 0, width - 1)
+        cursorRow = clamp(row, 0, height - 1)
     }
 
     fun moveUp(n: Int) {
@@ -99,7 +76,7 @@ class TerminalBuffer(
 
         for (ch in text) {
             when (ch) {
-                '\n' -> newLine()
+                '\n' -> newline()
                 '\r' -> carriageReturn()
                 else -> {
                     putCharAtCursor(ch)
@@ -114,7 +91,7 @@ class TerminalBuffer(
 
         for (ch in text) {
             when (ch) {
-                '\n' -> newLine()
+                '\n' -> newline()
                 '\r' -> carriageReturn()
                 else -> {
                     val overflow = insertCellAt(cursorRow, cursorCol, makeCell(ch))
@@ -148,24 +125,17 @@ class TerminalBuffer(
             }
         }
 
-        screen.add(blankLineUsingCurrentAttributesOrDefault())
+        screen.add(blankLine(width))
 
-        cursorRow = cursorRow.coerceIn(0, height - 1)
-        cursorCol = cursorCol.coerceIn(0, width - 1)
+        cursorRow = clamp(cursorRow, 0, height - 1)
+        cursorCol = clamp(cursorCol, 0, width - 1)
     }
 
     private fun putCharAtCursor(ch: Char) {
         screen[cursorRow][cursorCol] = makeCell(ch)
     }
 
-    private fun makeCell(ch: Char): Cell {
-        return Cell(
-            ch = ch,
-            fg = currentFg,
-            bg = currentBg,
-            style = currentStyle.copy()
-        )
-    }
+    private fun makeCell(ch: Char): Cell = createCell(ch, currentFg, currentBg, currentStyle)
 
     private fun insertCellAt(row: Int, col: Int, newCell: Cell): Cell? {
         val line = screen[row]
@@ -174,7 +144,7 @@ class TerminalBuffer(
             line[i] = line[i - 1]
         }
         line[col] = newCell
-        return if (dropped == defaultCell()) null else dropped
+        return if (dropped == emptyCell()) null else dropped
     }
 
     private fun cascadeOverflow(startRow: Int, overflow: Cell?) {
@@ -202,7 +172,7 @@ class TerminalBuffer(
         }
     }
 
-    private fun newLine() {
+    private fun newline() {
         cursorCol = 0
         cursorRow += 1
         if (cursorRow == height) {
@@ -214,48 +184,17 @@ class TerminalBuffer(
         cursorCol = 0
     }
 
-    private fun copyLine(line: List<Cell>): List<Cell> =
-        line.map { it.copy(style = it.style.copy()) }
-
-    private fun line(area: BufferArea, row: Int): List<Cell> {
-        return when (area) {
-            BufferArea.SCREEN -> {
-                if (row !in 0 until height) {
-                    throw IndexOutOfBoundsException("screen row out of bounds (row=$row, height=$height)")
-                }
-                screen[row]
-            }
-
-            BufferArea.SCROLLBACK -> {
-                if (row !in 0 until scrollback.size) {
-                    throw IndexOutOfBoundsException(
-                        "scrollback row out of bounds (row=$row, size=${scrollback.size})"
-                    )
-                }
-                scrollback[row]
-            }
-        }
-    }
-
-    private fun cell(area: BufferArea, row: Int, col: Int): Cell {
-        val line = line(area, row)
-        if (col !in 0 until width) {
-            throw IndexOutOfBoundsException("column out of bounds (col=$col, width=$width)")
-        }
-        return line[col]
-    }
-
     fun clearScreen() {
         val oldCursorCol = cursorCol
         val oldCursorRow = cursorRow
 
         screen.clear()
         repeat(height) {
-            screen.add(blankLine())
+            screen.add(blankLine(width))
         }
 
-        cursorCol = oldCursorCol.coerceIn(0, width - 1)
-        cursorRow = oldCursorRow.coerceIn(0, height - 1)
+        cursorCol = clamp(oldCursorCol, 0, width - 1)
+        cursorRow = clamp(oldCursorRow, 0, height - 1)
     }
 
     fun clearScreenAndScrollback() {
@@ -265,7 +204,8 @@ class TerminalBuffer(
         cursorRow = 0
     }
 
-    fun getCell(area: BufferArea, row: Int, col: Int): Cell = cell(area, row, col)
+    fun getCell(area: BufferArea, row: Int, col: Int): Cell =
+        cellAt(area, row, col, width, height, screen, scrollback)
 
     fun getChar(area: BufferArea, row: Int, col: Int): Char = getCell(area, row, col).ch
 
@@ -279,7 +219,7 @@ class TerminalBuffer(
     }
 
     fun getLineString(area: BufferArea, row: Int): String {
-        val line = line(area, row)
+        val line = lineAt(area, row, height, screen, scrollback)
         val chars = CharArray(width) { col -> line[col].ch }
         return String(chars).trimEnd()
     }
@@ -302,16 +242,8 @@ class TerminalBuffer(
         return getChar(BufferArea.SCREEN, row, col)
     }
 
-    fun getScrollbackChar(col: Int, row: Int): Char {
-        return getChar(BufferArea.SCROLLBACK, row, col)
-    }
-
     fun getScreenCell(col: Int, row: Int): Cell {
         return getCell(BufferArea.SCREEN, row, col)
-    }
-
-    fun getScrollbackCell(col: Int, row: Int): Cell {
-        return getCell(BufferArea.SCROLLBACK, row, col)
     }
 
     fun getScreenLineAsString(row: Int): String {
@@ -320,13 +252,5 @@ class TerminalBuffer(
 
     fun getScrollbackLineAsString(row: Int): String {
         return getLineString(BufferArea.SCROLLBACK, row)
-    }
-
-    fun getEntireScreenAsString(): String {
-        return getScreenAsString()
-    }
-
-    fun getEntireContentAsString(): String {
-        return getAllAsString()
     }
 }
