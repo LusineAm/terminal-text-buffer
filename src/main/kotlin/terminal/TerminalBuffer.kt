@@ -110,20 +110,25 @@ class TerminalBuffer(
     }
 
     fun insertText(text: String) {
-        TODO("API skeleton only")
+        if (text.isEmpty()) return
+
+        for (ch in text) {
+            when (ch) {
+                '\n' -> newLine()
+                '\r' -> carriageReturn()
+                else -> {
+                    val overflow = insertCellAt(cursorRow, cursorCol, makeCell(ch))
+                    cascadeOverflow(cursorRow + 1, overflow)
+                    advanceCursorAfterPrintable()
+                }
+            }
+        }
     }
 
     fun fillCurrentLine(ch: Char? = null) {
-        check(cursorRow in 0 until height) { "cursorRow out of bounds (row=$cursorRow, height=$height)" }
-
         val fillChar = ch ?: ' '
         for (col in 0 until width) {
-            screen[cursorRow][col] = Cell(
-                ch = fillChar,
-                fg = currentFg,
-                bg = currentBg,
-                style = currentStyle.copy()
-            )
+            screen[cursorRow][col] = makeCell(fillChar)
         }
     }
 
@@ -150,12 +155,40 @@ class TerminalBuffer(
     }
 
     private fun putCharAtCursor(ch: Char) {
-        screen[cursorRow][cursorCol] = Cell(
+        screen[cursorRow][cursorCol] = makeCell(ch)
+    }
+
+    private fun makeCell(ch: Char): Cell {
+        return Cell(
             ch = ch,
             fg = currentFg,
             bg = currentBg,
             style = currentStyle.copy()
         )
+    }
+
+    private fun insertCellAt(row: Int, col: Int, newCell: Cell): Cell? {
+        val line = screen[row]
+        val dropped = line[width - 1]
+        for (i in width - 1 downTo col + 1) {
+            line[i] = line[i - 1]
+        }
+        line[col] = newCell
+        return if (dropped == defaultCell()) null else dropped
+    }
+
+    private fun cascadeOverflow(startRow: Int, overflow: Cell?) {
+        var row = startRow
+        var pending = overflow
+
+        while (pending != null) {
+            if (row == height) {
+                scrollUpOneLine()
+                row = height - 1
+            }
+            pending = insertCellAt(row, 0, pending)
+            row += 1
+        }
     }
 
     private fun advanceCursorAfterPrintable() {
